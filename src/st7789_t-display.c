@@ -15,9 +15,10 @@ void send_cmd(uint8_t cmd) {
 
 void send_data16(uint16_t data){
   gpio_set_level(TFT_DC, DATA_MODE);
+  uint8_t buffer[2] = {data >> 8, data & 0xFF};
   spi_transaction_t t = {
     .length = 16,
-    .tx_buffer = &data
+    .tx_buffer = buffer
   };
   ESP_ERROR_CHECK(spi_device_transmit(spi, &t));
 }
@@ -46,26 +47,14 @@ void RESET(){
 }
 
 void porch_control(uint8_t bpa, uint8_t fpa, bool psen, uint8_t bpb, uint8_t fpb, uint8_t bpc, uint8_t fpc) {
-    send_cmd(PORCTRL); // 0xB2
-    
-    // Byte 1: BPA[6:0]
-    send_data(bpa & 0x7F); // Asegura que solo se usen 7 bits
-    
-    // Byte 2: FPA[6:0]
-    send_data(fpa & 0x7F); // Asegura que solo se usen 7 bits
-    
-    // Byte 3: PSEN (bit 7) + BPB[3:0]
-    uint8_t byte3 = (psen ? 0x80 : 0x00) | (bpb & 0x0F); // PSEN en bit 7, BPB en bits 3:0
+    send_cmd(PORCTRL);
+    send_data(bpa & 0x7F);
+    send_data(fpa & 0x7F);
+    uint8_t byte3 = (psen ? 0x80 : 0x00) | (bpb & 0x0F);
     send_data(byte3);
-    
-    // Byte 4: FPB[3:0]
-    send_data(fpb & 0x0F); // Asegura que solo se usen 4 bits
-    
-    // Byte 5: BPC[3:0]
-    send_data(bpc & 0x0F); // Asegura que solo se usen 4 bits
-    
-    // Byte 6: FPC[3:0]
-    send_data(fpc & 0x0F); // Asegura que solo se usen 4 bits
+    send_data(fpb & 0x0F);
+    send_data(bpc & 0x0F);
+    send_data(fpc & 0x0F);
 }
 
 void set_orientation(uint8_t data){
@@ -73,43 +62,57 @@ void set_orientation(uint8_t data){
   send_data(data);
 }
 
-void set_window(){
-  send_cmd(CASET);
-  send_data8()
+void set_window(uint16_t x0, uint16_t x1, uint16_t y0, uint16_t y1) {
+    send_cmd(CASET);
+    send_data16(x0);
+    send_data16(x1);
+    
+    send_cmd(RASET);
+    send_data16(y0);
+    send_data16(y1);
+    
+    //send_cmd(RAMWR);
 }
 
+void gpio_init() {
+    gpio_config_t io_conf = {
+        .pin_bit_mask = (1ULL << TFT_DC) | (1ULL << TFT_RST) | (1ULL << TFT_BL),
+        .mode = GPIO_MODE_OUTPUT,
+        .pull_up_en = GPIO_PULLUP_DISABLE,
+        .pull_down_en = GPIO_PULLDOWN_DISABLE,
+        .intr_type = GPIO_INTR_DISABLE
+    };
+    gpio_config(&io_conf);
+}
 
-// Secuencia de inicialización optimizada
 void INIT() {
+    gpio_init();
     RESET();
     
-    // Secuencia de comandos crítica
     send_cmd(SLPOUT);
     vTaskDelay(pdMS_TO_TICKS(120));
 
     send_cmd(COLMOD);
-    send_data8(COLOR_65K);
-    vTaskDelay(pdMS_TO_TICKS(120));
-    
-    set_orientatation(0x08); // Orientación MX=0, MV=1 (modo vertical)
+    send_data8(0x55); // TODO: ALLOW USER CONTROL
 
-    // Configuración de timings
-    porch_control(0x01, 0x01, false, 0x01, 0x33, 0x33);
-    send_cmd(GCTRL);  
+    set_orientation(0x20); // TODO: ALLOW USER CONTROL
+
+    porch_control(0x0C, 0x0C, 0x00, 0x02, 0x02, 0x02, 0x02); // TODO: ALLOW USER CONTROL
+    
+    send_cmd(GCTRL);
     send_data8(0x35);
 
-    //configuración de VCOMS
     send_cmd(VCOMS);
-    send_data8(0x20);
+    send_data8(0x1F); // TODO: ALLOW USER CONTROL
 
-    send_cmd(INVOFF); // Inversión de colores OFF
     vTaskDelay(pdMS_TO_TICKS(10));
 
     send_cmd(DISPON);
     vTaskDelay(pdMS_TO_TICKS(150));
+    
+    enable_backlight();
 }
 
-// Inicialización SPI optimizada con catch error
 void spi_init() {
     spi_bus_config_t buscfg = {
         .mosi_io_num = TFT_MOSI,
