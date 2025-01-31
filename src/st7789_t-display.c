@@ -1,8 +1,6 @@
-#include "st7789_t-display/include/st7789_t-display.h"
-
+#include "st7789_t-display.h"
 
 spi_device_handle_t spi;
-
 
 void send_cmd(uint8_t cmd) {
     gpio_set_level(TFT_DC, CMD_MODE);
@@ -14,13 +12,13 @@ void send_cmd(uint8_t cmd) {
 }
 
 void send_data16(uint16_t data){
-  gpio_set_level(TFT_DC, DATA_MODE);
-  uint8_t buffer[2] = {data >> 8, data & 0xFF};
-  spi_transaction_t t = {
-    .length = 16,
-    .tx_buffer = buffer
-  };
-  ESP_ERROR_CHECK(spi_device_transmit(spi, &t));
+    gpio_set_level(TFT_DC, DATA_MODE);
+    uint8_t buffer[2] = {data >> 8, data & 0xFF};
+    spi_transaction_t t = {
+        .length = 16,
+        .tx_buffer = buffer
+    };
+    ESP_ERROR_CHECK(spi_device_transmit(spi, &t));
 }
 
 void send_data8(uint8_t data) {
@@ -32,12 +30,10 @@ void send_data8(uint8_t data) {
     ESP_ERROR_CHECK(spi_device_transmit(spi, &t));
 }
 
-
 void enable_backlight() {
     gpio_set_direction(TFT_BL, GPIO_MODE_OUTPUT);
     gpio_set_level(TFT_BL, 1);
 }
-
 
 void RESET(){
     gpio_set_level(TFT_RST, 0);
@@ -48,30 +44,27 @@ void RESET(){
 
 void porch_control(uint8_t bpa, uint8_t fpa, bool psen, uint8_t bpb, uint8_t fpb, uint8_t bpc, uint8_t fpc) {
     send_cmd(PORCTRL);
-    send_data(bpa & 0x7F);
-    send_data(fpa & 0x7F);
+    send_data8(bpa & 0x7F);
+    send_data8(fpa & 0x7F);
     uint8_t byte3 = (psen ? 0x80 : 0x00) | (bpb & 0x0F);
-    send_data(byte3);
-    send_data(fpb & 0x0F);
-    send_data(bpc & 0x0F);
-    send_data(fpc & 0x0F);
+    send_data8(byte3);
+    send_data8(fpb & 0x0F);
+    send_data8(bpc & 0x0F);
+    send_data8(fpc & 0x0F);
 }
 
 void set_orientation(uint8_t data){
-  send_cmd(MADCTL);
-  send_data(data);
+    send_cmd(MADCTL);
+    send_data8(data);
 }
 
 void set_window(uint16_t x0, uint16_t x1, uint16_t y0, uint16_t y1) {
     send_cmd(CASET);
     send_data16(x0);
     send_data16(x1);
-    
     send_cmd(RASET);
     send_data16(y0);
     send_data16(y1);
-    
-    //send_cmd(RAMWR);
 }
 
 void gpio_init() {
@@ -88,28 +81,20 @@ void gpio_init() {
 void INIT() {
     gpio_init();
     RESET();
-    
     send_cmd(SLPOUT);
     vTaskDelay(pdMS_TO_TICKS(120));
-
     send_cmd(COLMOD);
-    send_data8(0x55); // TODO: ALLOW USER CONTROL
-
-    set_orientation(0x20); // TODO: ALLOW USER CONTROL
-
-    porch_control(0x0C, 0x0C, 0x00, 0x02, 0x02, 0x02, 0x02); // TODO: ALLOW USER CONTROL
-    
+    send_data8(0x55);
+    set_orientation(0xC0);
+    porch_control(0x0C, 0x0C, 0x00, 0x0C, 0x0C, 0x0C, 0x0C);
     send_cmd(GCTRL);
     send_data8(0x35);
-
     send_cmd(VCOMS);
-    send_data8(0x1F); // TODO: ALLOW USER CONTROL
-
+    send_data8(0x1F);
+    send_cmd(INVON);
     vTaskDelay(pdMS_TO_TICKS(10));
-
     send_cmd(DISPON);
     vTaskDelay(pdMS_TO_TICKS(150));
-    
     enable_backlight();
 }
 
@@ -120,7 +105,7 @@ void spi_init() {
         .miso_io_num = -1,
         .quadwp_io_num = -1,
         .quadhd_io_num = -1,
-        .max_transfer_sz = 4096
+        .max_transfer_sz = TFT_HEIGHT * TFT_WIDTH * 16
     };
 
     spi_device_interface_config_t devcfg = {
@@ -133,4 +118,42 @@ void spi_init() {
 
     ESP_ERROR_CHECK(spi_bus_initialize(SPI2_HOST, &buscfg, SPI_DMA_CH_AUTO));
     ESP_ERROR_CHECK(spi_bus_add_device(SPI2_HOST, &devcfg, &spi));
+}
+
+uint16_t rgb888_to_rgb565(uint8_t r, uint8_t g, uint8_t b) {
+    return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3);
+}
+
+void draw_pixel(uint16_t x, uint16_t y, uint16_t color){
+    set_window(x, x, y, y);
+    send_cmd(RAMWR);
+    send_data16(color);
+}
+
+void draw_row(uint16_t y, uint16_t *pixels){
+    uint8_t pixel_buffer[TFT_WIDTH * 2];
+    set_window(0, TFT_WIDTH - 1, y, y);
+    for(int i = 0; i < TFT_WIDTH; i++){
+        pixel_buffer[i * 2] = (pixels[i] >> 8) & 0xFF;
+        pixel_buffer[i * 2 + 1] = pixels[i] & 0xFF;
+    }
+    send_cmd(RAMWR);
+    gpio_set_level(TFT_DC, DATA_MODE);
+    spi_transaction_t t = {
+        .length = TFT_WIDTH * 16,
+        .tx_buffer = pixel_buffer
+    };
+    ESP_ERROR_CHECK(spi_device_transmit(spi, &t));
+}
+
+void clear_screen(uint16_t color){
+    uint16_t color_row[TFT_WIDTH];
+    for(int i = 0; i < TFT_WIDTH; i++){
+        color_row[i] = color;
+    }
+    for(uint16_t i = 0; i < TFT_HEIGHT; i++){
+        draw_row(i, color_row);
+        vTaskDelay(3);
+        printf("%d\n", i);
+    }
 }

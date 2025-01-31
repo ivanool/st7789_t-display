@@ -34,6 +34,7 @@
 #define GCTRL 0xB7
 #define POWSAVE 0xBC
 #define VCOMS 0xBB
+#define RAMWR 0x2C
 
 //DATA FOR CMD
 
@@ -43,9 +44,9 @@
 #define CMD_MODE 0
 #define DATA_MODE 1
 #define SPI_FREQUENCY 40000000
-#define READ_FREQUENCY 
-#define TFT_HEIGH 320
+#define TFT_HEIGHT 320
 #define TFT_WIDTH 240
+#define WINDOW_PIXEL 76800
 
 
 void RESET();
@@ -57,3 +58,9 @@ void INIT();
 void enable_backlight();
 void porch_control(uint8_t bpa, uint8_t fpa, bool psen, uint8_t bpb, uint8_t fpb, uint8_t bpc, uint8_t fpc);
 void set_window(uint16_t x1, uint16_t x2, uint16_t y1, uint16_t y2);
+void clear_screen_slow(uint16_t color, uint32_t window_size);
+uint16_t rgb888_to_rgb565(uint8_t r, uint8_t g, uint8_t b);
+void draw_row(uint16_t y, uint16_t *pixels);
+void draw_pixel(uint16_t x1, uint16_t y, uint16_t color);
+void clear_screen(uint16_t color);
+void clear_screen_fastest(uint16_t color);
