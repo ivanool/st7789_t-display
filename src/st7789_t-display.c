@@ -1,5 +1,8 @@
 #include "st7789_t-display.h"
-#include "driver/ledc.h"
+
+
+
+
 spi_device_handle_t spi;
 
 void send_cmd(uint8_t cmd) {
@@ -109,7 +112,7 @@ void INIT() {
     send_cmd(COLMOD);
     send_data8(0x55);
     set_orientation(0xC0);
-    porch_control(0x0C, 0x0C, 0x00, 0x0C, 0x0C, 0x0C, 0x0C);
+    porch_control(0x01, 0x01, 0x00, 0x01, 0x01, 0x01, 0x01);
     send_cmd(GCTRL);
     send_data8(0x35);
     send_cmd(VCOMS);
@@ -118,6 +121,8 @@ void INIT() {
     vTaskDelay(pdMS_TO_TICKS(10));
     send_cmd(DISPON);
     vTaskDelay(pdMS_TO_TICKS(150));
+    send_cmd(TEON);
+    send_data8(0x00);
     backlight(10);
 }
 
@@ -135,7 +140,7 @@ void spi_init() {
         .clock_speed_hz = SPI_FREQUENCY,
         .mode = 0,
         .spics_io_num = TFT_CS,
-        .queue_size = 7,
+        .queue_size = 9,
         .flags = SPI_DEVICE_NO_DUMMY
     };
 
@@ -178,3 +183,29 @@ void clear_screen(uint16_t color){
         draw_row(i, color_row);
     }
 }
+
+void fill_screen(uint16_t color){
+    uint16_t *page = (uint16_t *)heap_caps_malloc(TFT_WIDTH * TFT_HEIGHT * sizeof(uint16_t), MALLOC_CAP_DMA);
+    if (!page) {
+        printf("Error: No se pudo asignar memoria para el buffer\n");
+        return;
+    }
+
+    for(int i = 0; i < TFT_WIDTH * TFT_HEIGHT; i++) {
+        page[i] = (color >> 8) | (color << 8);
+    }
+
+    set_window(0, TFT_WIDTH-1, 0, TFT_HEIGHT-1);
+    send_cmd(RAMWR);
+    gpio_set_level(TFT_DC, DATA_MODE);
+
+    spi_transaction_t t = {
+        .length = TFT_HEIGHT * TFT_WIDTH * 16,
+        .tx_buffer = page
+    };
+
+    ESP_ERROR_CHECK(spi_device_transmit(spi, &t));
+    heap_caps_free(page);
+    
+}
+ 

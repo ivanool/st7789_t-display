@@ -38,6 +38,7 @@
 #define POWSAVE 0xBC
 #define VCOMS 0xBB
 #define RAMWR 0x2C
+#define TEON 0x35
 
 //DATA FOR CMD
 
@@ -46,7 +47,7 @@
 //program
 #define CMD_MODE 0
 #define DATA_MODE 1
-#define SPI_FREQUENCY 40000000
+#define SPI_FREQUENCY 40 * 1000 * 1000
 #define TFT_HEIGHT 320
 #define TFT_WIDTH 240
 #define WINDOW_PIXEL 76800
@@ -76,4 +77,4 @@ uint16_t rgb888_to_rgb565(uint8_t r, uint8_t g, uint8_t b);
 void draw_row(uint16_t y, uint16_t *pixels);
 void draw_pixel(uint16_t x1, uint16_t y, uint16_t color);
 void clear_screen(uint16_t color);
-
+void fill_screen(uint16_t color);
