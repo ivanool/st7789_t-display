@@ -208,4 +208,8 @@ void fill_screen(uint16_t color){
     heap_caps_free(page);
     
 }
- 
+
+
+void makima(){
+    return;
+}

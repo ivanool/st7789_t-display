@@ -78,3 +78,4 @@ void draw_row(uint16_t y, uint16_t *pixels);
 void draw_pixel(uint16_t x1, uint16_t y, uint16_t color);
 void clear_screen(uint16_t color);
 void fill_screen(uint16_t color);
+void makima();
