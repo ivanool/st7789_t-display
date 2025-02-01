@@ -4,8 +4,11 @@
 #include "driver/gpio.h"
 #include "driver/spi_master.h"
 #include "esp_log.h"
+#include "freertos/task.h"
+#include "freertos/FreeRTOS.h"
+#include "esp_system.h"
+#include "driver/ledc.h"
 
-//PIN
 
 #define TFT_CS 5
 #define TFT_DC 16
@@ -48,6 +51,16 @@
 #define TFT_WIDTH 240
 #define WINDOW_PIXEL 76800
 
+//backlight
+#define SPEED_MODE LEDC_HIGH_SPEED_MODE
+#define TIMER_NUM LEDC_TIMER_0
+#define DUTY_RESOLUTION LEDC_TIMER_8_BIT
+#define FREQUENCY_TIMER 5000
+#define CLK_CFG LEDC_AUTO_CLK
+
+#define LEDC_CHANNEL LEDC_CHANNEL_0
+#define GPIO_NUM TFT_BL
+
 
 void RESET();
 void spi_init();
@@ -55,7 +68,7 @@ void send_data8(uint8_t data);
 void send_data16(uint16_t data);
 void send_cmd(uint8_t cmd);
 void INIT();
-void enable_backlight();
+void backlight(uint8_t duty);
 void porch_control(uint8_t bpa, uint8_t fpa, bool psen, uint8_t bpb, uint8_t fpb, uint8_t bpc, uint8_t fpc);
 void set_window(uint16_t x1, uint16_t x2, uint16_t y1, uint16_t y2);
 void clear_screen_slow(uint16_t color, uint32_t window_size);
@@ -63,4 +76,4 @@ uint16_t rgb888_to_rgb565(uint8_t r, uint8_t g, uint8_t b);
 void draw_row(uint16_t y, uint16_t *pixels);
 void draw_pixel(uint16_t x1, uint16_t y, uint16_t color);
 void clear_screen(uint16_t color);
-void clear_screen_fastest(uint16_t color);
+

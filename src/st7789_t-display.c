@@ -1,5 +1,5 @@
 #include "st7789_t-display.h"
-
+#include "driver/ledc.h"
 spi_device_handle_t spi;
 
 void send_cmd(uint8_t cmd) {
@@ -30,10 +30,33 @@ void send_data8(uint8_t data) {
     ESP_ERROR_CHECK(spi_device_transmit(spi, &t));
 }
 
-void enable_backlight() {
-    gpio_set_direction(TFT_BL, GPIO_MODE_OUTPUT);
-    gpio_set_level(TFT_BL, 1);
+void backlight(uint8_t duty) {
+
+    ledc_timer_config_t ledc_timer = {
+        .speed_mode = SPEED_MODE,
+        .timer_num = TIMER_NUM,
+        .duty_resolution = DUTY_RESOLUTION,
+        .freq_hz = FREQUENCY_TIMER,
+        .clk_cfg = CLK_CFG,
+    };
+
+    ledc_timer_config(&ledc_timer);
+
+    ledc_channel_config_t ledc_channel = {
+        .speed_mode = SPEED_MODE,
+        .channel = LEDC_CHANNEL,
+        .gpio_num = GPIO_NUM,
+        .timer_sel = TIMER_NUM,
+        .duty = 0,
+        .hpoint = 0,
+    };
+    ledc_channel_config(&ledc_channel);
+
+    ledc_set_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL, duty);
+    ledc_update_duty(LEDC_HIGH_SPEED_MODE, LEDC_CHANNEL);
+
 }
+
 
 void RESET(){
     gpio_set_level(TFT_RST, 0);
@@ -95,7 +118,7 @@ void INIT() {
     vTaskDelay(pdMS_TO_TICKS(10));
     send_cmd(DISPON);
     vTaskDelay(pdMS_TO_TICKS(150));
-    enable_backlight();
+    backlight(10);
 }
 
 void spi_init() {
@@ -153,7 +176,5 @@ void clear_screen(uint16_t color){
     }
     for(uint16_t i = 0; i < TFT_HEIGHT; i++){
         draw_row(i, color_row);
-        vTaskDelay(3);
-        printf("%d\n", i);
     }
 }
